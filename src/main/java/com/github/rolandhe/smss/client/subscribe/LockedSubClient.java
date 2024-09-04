@@ -24,7 +24,7 @@ public class LockedSubClient implements Subscribe{
         this.mqName = mqName;
         this.who = who;
         this.eventId = eventId;
-        this.key = String.format("sub_lock@%s", who);
+        this.key = String.format("sub_lock@%s@%s", mqName,who);
     }
 
     @Override
