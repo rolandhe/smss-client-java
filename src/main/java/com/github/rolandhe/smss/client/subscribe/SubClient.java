@@ -4,7 +4,6 @@ import com.github.rolandhe.smss.client.bytes.BytesUtils;
 import com.github.rolandhe.smss.client.msg.SubMessage;
 import com.github.rolandhe.smss.client.nets.SockUtil;
 import com.github.rolandhe.smss.client.proto.ProtoConst;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayOutputStream;
@@ -22,7 +21,7 @@ public class SubClient implements Subscribe {
     private final SubConfig config;
     private final Socket sock = new Socket();
     private final AtomicInteger state = new AtomicInteger(0);
-    private final String mqName;
+    private final String topicName;
     private final String who;
     private final long eventId;
 
@@ -48,9 +47,9 @@ public class SubClient implements Subscribe {
         }
     }
 
-    public SubClient(SubConfig config, String mqName, String who, long eventId) {
+    public SubClient(SubConfig config, String topicName, String who, long eventId) {
         this.config = config;
-        this.mqName = mqName;
+        this.topicName = topicName;
         this.who = who;
         this.eventId = eventId;
     }
@@ -72,7 +71,7 @@ public class SubClient implements Subscribe {
             sock.setReuseAddress(true);
             sock.connect(new InetSocketAddress(config.getHost(), config.getPort()), config.getSoTimeout());
             state.set(RunningState.Running.value);
-            byte[] cmdBuf = pocketSubCmd(mqName, who, eventId);
+            byte[] cmdBuf = pocketSubCmd(topicName, who, eventId);
             SockUtil.writeAll(sock, cmdBuf);
             waitMessage(processor);
         } catch (IOException e) {

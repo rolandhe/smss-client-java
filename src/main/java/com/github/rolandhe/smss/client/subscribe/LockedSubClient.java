@@ -13,18 +13,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class LockedSubClient implements Subscribe{
     private final SubConfig config;
     private final DLock dLock;
-    private final String mqName;
+    private final String topicName;
     private final String who;
     private final long eventId;
     private final String key;
 
-    public LockedSubClient(SubConfig config, DLock dLock, String mqName, String who, long eventId) {
+    public LockedSubClient(SubConfig config, DLock dLock, String topicName, String who, long eventId) {
         this.config = config;
         this.dLock = dLock;
-        this.mqName = mqName;
+        this.topicName = topicName;
         this.who = who;
         this.eventId = eventId;
-        this.key = String.format("sub_lock@%s@%s", mqName,who);
+        this.key = String.format("sub_lock@%s@%s", topicName,who);
     }
 
     @Override
@@ -102,7 +102,7 @@ public class LockedSubClient implements Subscribe{
     private void subCore(SubContext context, SubMessageProcessor processor) {
         while(!context.stop.get()) {
             try {
-                SubClient client = new SubClient(config, mqName, who, eventId);
+                SubClient client = new SubClient(config, topicName, who, eventId);
                 context.setClient(client);
                 client.subscribe(processor);
             } catch (RuntimeException e) {
