@@ -18,10 +18,13 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
-public class SubClient {
+public class SubClient implements Subscribe {
     private final SubConfig config;
     private final Socket sock = new Socket();
     private final AtomicInteger state = new AtomicInteger(0);
+    private final String mqName;
+    private final String who;
+    private final long eventId;
 
 
     public enum RunningState{
@@ -45,8 +48,11 @@ public class SubClient {
         }
     }
 
-    public SubClient(SubConfig config) {
+    public SubClient(SubConfig config, String mqName, String who, long eventId) {
         this.config = config;
+        this.mqName = mqName;
+        this.who = who;
+        this.eventId = eventId;
     }
 
 
@@ -55,7 +61,8 @@ public class SubClient {
         return RunningState.of(v);
     }
 
-    public void subscribe(String mqName, String who, long eventId, SubMessageProcessor processor) {
+    @Override
+    public void subscribe(SubMessageProcessor processor) {
         if(state.get() != RunningState.Init.value){
             throw new RuntimeException("invalid SubClient");
         }

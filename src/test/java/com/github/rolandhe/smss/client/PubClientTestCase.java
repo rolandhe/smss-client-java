@@ -14,7 +14,7 @@ public class PubClientTestCase {
         PubClient pclient = null;
         try {
             pclient = pool.borrow();
-            for (int i = 0; i < 100; i++) {
+            for (int i = 24560; i < 24660; i++) {
                 Message msg = new Message();
                 String body = String.format("hello world-000%d", i);
                 msg.setPayload(body.getBytes(StandardCharsets.UTF_8));
