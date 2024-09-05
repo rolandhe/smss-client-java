@@ -5,5 +5,6 @@ public enum LockEvent {
     Leased,
     LossLock,
     LockTimeout,
+    LockerShutdown,
     ;
 }

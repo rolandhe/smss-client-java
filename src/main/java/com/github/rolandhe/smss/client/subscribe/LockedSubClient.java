@@ -1,10 +1,12 @@
 package com.github.rolandhe.smss.client.subscribe;
 
-import com.github.rolandhe.smss.client.dlock.DLock;
+import com.github.rolandhe.smss.client.dlock.SubLock;
 import com.github.rolandhe.smss.client.dlock.EventWatcher;
 import com.github.rolandhe.smss.client.dlock.LockEvent;
+import com.github.rolandhe.smss.client.dlock.QuickWaiter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.net.SocketException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -12,15 +14,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class LockedSubClient implements Subscribe{
     private final SubConfig config;
-    private final DLock dLock;
+    private final SubLock subLock;
     private final String topicName;
     private final String who;
     private final long eventId;
     private final String key;
 
-    public LockedSubClient(SubConfig config, DLock dLock, String topicName, String who, long eventId) {
+    public LockedSubClient(SubConfig config, SubLock subLock, String topicName, String who, long eventId) {
         this.config = config;
-        this.dLock = dLock;
+        this.subLock = subLock;
         this.topicName = topicName;
         this.who = who;
         this.eventId = eventId;
@@ -29,7 +31,7 @@ public class LockedSubClient implements Subscribe{
 
     @Override
     public void subscribe(SubMessageProcessor processor) {
-        dLock.lockWatch(key, createWatcher(processor));
+        subLock.lockWatch(key, createWatcher(processor));
     }
 
     private static abstract class ClearRelease {
@@ -57,7 +59,7 @@ public class LockedSubClient implements Subscribe{
                     release = start(processor);
                     return;
                 }
-                if (event == LockEvent.LossLock) {
+                if (event == LockEvent.LossLock || event == LockEvent.LockerShutdown) {
                     if (release != null) {
                         release.shutdown();
                         release.waitEnd();
@@ -77,13 +79,11 @@ public class LockedSubClient implements Subscribe{
             }
         };
         CountDownLatch runWait = new CountDownLatch(1);
-        Runnable func = new Runnable() {
-            @Override
-            public void run() {
-                runWait.countDown();
-                subCore(context, processor);
-                release.waitEnd.countDown();
-            }
+        Runnable func = () -> {
+            runWait.countDown();
+            subCore(context, processor);
+            log.info("sub-core end");
+            release.waitEnd.countDown();
         };
 
         Thread t = new Thread(func, "sub-core");
@@ -106,7 +106,11 @@ public class LockedSubClient implements Subscribe{
                 context.setClient(client);
                 client.subscribe(processor);
             } catch (RuntimeException e) {
-                log.info("sub core exp", e);
+                if(context.stop.get() && checkSocketCloseExp(e)){
+                    log.info("socket closed by lock shutdown");
+                }else {
+                    log.info("sub core exp", e);
+                }
                 context.setClient(null);
                 if(!context.waitNextTry()){
                     break;
@@ -115,22 +119,25 @@ public class LockedSubClient implements Subscribe{
         }
     }
 
+    private boolean checkSocketCloseExp(RuntimeException e){
+        if(e.getCause() instanceof SocketException){
+            SocketException se = (SocketException) e.getCause();
+            return "Socket closed".equals(se.getMessage());
+        }
+        return false;
+    }
+
     private static class SubContext {
         private SubClient client;
         private final AtomicBoolean stop = new AtomicBoolean(false);
-        private final CountDownLatch couldEnd = new CountDownLatch(1);
+        private final QuickWaiter couldEnd = new QuickWaiter();
 
         synchronized void setClient(SubClient client) {
             this.client = client;
         }
 
         boolean waitNextTry(){
-            try {
-                return !couldEnd.await(5 , TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                log.info("couldEnd await",e);
-                return false;
-            }
+           return couldEnd.await(5 , TimeUnit.SECONDS);
         }
 
         synchronized void endNotify() {
