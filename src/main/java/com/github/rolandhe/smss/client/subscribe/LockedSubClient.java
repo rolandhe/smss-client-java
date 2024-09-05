@@ -11,6 +11,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * 支持分布式锁的订阅者实现，一般用于生产环境中, 该实现保证了在多活环境下，同一个业务只有一个实例能够消费同一个topic
+ *
+ */
 @Slf4j
 public class LockedSubClient implements Subscribe{
     private final SubConfig config;
@@ -20,6 +24,14 @@ public class LockedSubClient implements Subscribe{
     private final long eventId;
     private final String key;
 
+    /**
+     *
+     * @param config
+     * @param subLock
+     * @param topicName
+     * @param who     消费者是谁，类kafka的group，表示某个业务
+     * @param eventId
+     */
     public LockedSubClient(SubConfig config, SubLock subLock, String topicName, String who, long eventId) {
         this.config = config;
         this.subLock = subLock;

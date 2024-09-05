@@ -3,7 +3,10 @@ package com.github.rolandhe.smss.client;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 
-
+/**
+ * PubClient池，池化的PubClient可以被服用
+ *
+ */
 @Slf4j
 public class PubClientPool {
     private final GenericObjectPool<PubClient> pool;
@@ -17,6 +20,11 @@ public class PubClientPool {
         pool = new GenericObjectPool<>(factory, config);
     }
 
+    /**
+     * 从池中借用一个PubClient
+     *
+     * @return
+     */
     public PubClient borrow()  {
         try {
             PubClient real =  pool.borrowObject();
@@ -31,6 +39,9 @@ public class PubClientPool {
     }
 
 
+    /**
+     * 释放池
+     */
     public void shutDown() {
         pool.close();
     }

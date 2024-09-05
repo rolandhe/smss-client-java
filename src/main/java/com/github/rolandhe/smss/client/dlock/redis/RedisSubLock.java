@@ -16,7 +16,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
+/**
+ * 基于redis或者类redis实现的分布式锁。
+ * 由于redis锁不像zookeeper那样可以持续不断的监控，使用redis需要使用轮询技术来模拟连续性。
+ *
+ */
 @Slf4j
 public class RedisSubLock implements SubLock {
     private final String host;
@@ -53,9 +57,26 @@ public class RedisSubLock implements SubLock {
         this.runInMain = runInMain;
     }
 
+    /**
+     * 创建生产环境中的redis 锁，锁的监控在独立的线程中运行
+     *
+     * @param host redis host
+     * @param port redis port
+     * @param notSupportLua 不支持lua，类redis产品，比如pika，不支持lua
+     * @return
+     */
     public static SubLock factory(String host, int port, boolean notSupportLua){
         return new RedisSubLock(host,port,notSupportLua,false);
     }
+
+    /**
+     * 创建测试环境中的redis 锁，锁的监控在当前主线程中运行
+     *
+     * @param host
+     * @param port
+     * @param notSupportLua
+     * @return
+     */
     public static SubLock factoryInMainThread(String host, int port, boolean notSupportLua){
         return new RedisSubLock(host,port,notSupportLua,true);
     }

@@ -10,6 +10,12 @@ import lombok.ToString;
 @AllArgsConstructor
 @ToString
 public class OpResult {
+    /**
+     * 是否成功
+     */
     private boolean success;
+    /**
+     * 出错描述信息，如果 success==true，errMessage=null
+     */
     private String errMessage;
 }

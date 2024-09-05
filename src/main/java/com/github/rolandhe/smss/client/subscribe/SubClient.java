@@ -16,6 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * 简单环境的消息订阅者实现，用于只有单个实例订阅消息的场景，在多活、微服务场景下一般使用 LockedSubClient
+ */
 @Slf4j
 public class SubClient implements Subscribe {
     private final SubConfig config;
@@ -47,6 +50,14 @@ public class SubClient implements Subscribe {
         }
     }
 
+    /**
+     *
+     *
+     * @param config
+     * @param topicName
+     * @param who
+     * @param eventId
+     */
     public SubClient(SubConfig config, String topicName, String who, long eventId) {
         this.config = config;
         this.topicName = topicName;
@@ -54,11 +65,6 @@ public class SubClient implements Subscribe {
         this.eventId = eventId;
     }
 
-
-    public RunningState getState(){
-        int v = state.get();
-        return RunningState.of(v);
-    }
 
     @Override
     public void subscribe(SubMessageProcessor processor) {

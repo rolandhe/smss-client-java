@@ -14,7 +14,7 @@ public class PubClientTestCase {
         PubClient pclient = null;
         try {
             pclient = pool.borrow();
-            for (int i = 24560; i < 24660; i++) {
+            for (int i = 0; i < 1000; i++) {
                 Message msg = new Message();
                 String body = String.format("hello world-000%d", i);
                 msg.setPayload(body.getBytes(StandardCharsets.UTF_8));
@@ -88,7 +88,8 @@ public class PubClientTestCase {
         PubClient pclient = null;
         try {
             pclient = pool.borrow();
-            OpResult ret = pclient.createTopic("trade2",0, UUID.randomUUID().toString());
+            long expireAt = System.currentTimeMillis() + 60L * 1000 * 10;
+            OpResult ret = pclient.createTopic("trade2",expireAt, UUID.randomUUID().toString());
             System.out.println(ret);
         } catch (RuntimeException e) {
             e.printStackTrace();
