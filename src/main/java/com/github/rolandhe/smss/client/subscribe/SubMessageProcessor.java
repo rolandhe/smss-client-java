@@ -6,4 +6,7 @@ import java.util.List;
 
 public interface SubMessageProcessor {
     MsgProcResult process(List<SubMessage> message);
+    default void afterAck(long eventId,MsgProcResult result){
+
+    };
 }

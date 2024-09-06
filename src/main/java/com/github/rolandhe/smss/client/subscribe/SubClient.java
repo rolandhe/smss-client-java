@@ -124,26 +124,30 @@ public class SubClient implements Subscribe {
                 log.info("not support response code");
                 return;
             }
-            MsgProcResult result = doMessages(hbuf, processor);
+            List<SubMessage> messageList = readMessages(hbuf);
+            long lastEventId = messageList.get(messageList.size() - 1).getEventId();
+            MsgProcResult result =  processor.process(messageList);
+
             if (result == MsgProcResult.ClientTermiteWithoutAck) {
+                processor.afterAck(lastEventId,MsgProcResult.ClientTermiteWithoutAck);
                 return;
             }
 
             BytesUtils.putShortLittle(ack, 0, result.getCode());
             SockUtil.writeAll(sock, ack);
+            processor.afterAck(lastEventId,result);
             if (result == MsgProcResult.AckWithEnd) {
                 return;
             }
         }
     }
 
-    private MsgProcResult doMessages(byte[] hbuf, SubMessageProcessor processor) throws IOException {
+    private List<SubMessage> readMessages(byte[] hbuf) throws IOException {
         int msgCount = hbuf[2] & 0xFF;
         int payloadSize = BytesUtils.getIntLittle(hbuf, 4);
         byte[] body = new byte[payloadSize];
         SockUtil.readAll(sock, body);
-        List<SubMessage> list = parseMessages(body, msgCount);
-        return processor.process(list);
+        return parseMessages(body, msgCount);
     }
 
     private List<SubMessage> parseMessages(byte[] content, int msgCount) {

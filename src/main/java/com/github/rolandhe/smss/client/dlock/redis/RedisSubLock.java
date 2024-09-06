@@ -84,11 +84,12 @@ public class RedisSubLock implements SubLock {
     @Override
     public boolean lockWatch(String key, EventWatcher watcher) {
         String uid = UUID.randomUUID().toString();
-        Jedis jedis = new Jedis(RedisSubLock.this.host, RedisSubLock.this.port);
+
         CountDownLatch started = new CountDownLatch(1);
         Runnable func = () -> {
             runningState.set(true);
             started.countDown();
+            Jedis jedis = new Jedis(RedisSubLock.this.host, RedisSubLock.this.port);
             Recorder recorder = new Recorder(notSupportLua);
             while (!shutdownState.get()) {
                 try  {

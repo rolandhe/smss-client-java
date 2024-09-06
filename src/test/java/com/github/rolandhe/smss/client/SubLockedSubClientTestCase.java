@@ -39,10 +39,14 @@ public class SubLockedSubClientTestCase {
                 }
                 return MsgProcResult.ACK;
             }
+            @Override
+            public void afterAck(long eventId,MsgProcResult result){
+                log.info("after ack {},{}",eventId,result.getCode());
+            }
         });
 
         try {
-            Thread.sleep(60 * 1000L);
+            Thread.sleep(40 * 1000L);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }finally {
