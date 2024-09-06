@@ -6,6 +6,7 @@ import com.github.rolandhe.smss.client.dlock.LockEvent;
 import com.github.rolandhe.smss.client.dlock.QuickWaiter;
 import lombok.extern.slf4j.Slf4j;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.params.SetParams;
 
 import java.util.Arrays;
@@ -23,10 +24,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public class RedisSubLock implements SubLock {
-    private final String host;
-    private final int port;
     private final boolean notSupportLua;
     private final boolean runInMain;
+    private final UniversalJedisFactory universalJedisFactory;
 
     private final AtomicBoolean shutdownState = new AtomicBoolean(false);
     private final AtomicBoolean runningState = new AtomicBoolean(false);
@@ -50,9 +50,8 @@ public class RedisSubLock implements SubLock {
             "        end";
 
 
-    private RedisSubLock(String host, int port, boolean notSupportLua, boolean runInMain) {
-        this.host = host;
-        this.port = port;
+    private RedisSubLock(UniversalJedisFactory factory,boolean notSupportLua, boolean runInMain) {
+        this.universalJedisFactory = factory;
         this.notSupportLua = notSupportLua;
         this.runInMain = runInMain;
     }
@@ -66,7 +65,14 @@ public class RedisSubLock implements SubLock {
      * @return
      */
     public static SubLock factory(String host, int port, boolean notSupportLua){
-        return new RedisSubLock(host,port,notSupportLua,false);
+        return new RedisSubLock(() -> {
+            Jedis jedis =  new Jedis(host, port);
+            return new DefaultUniversalJedis(jedis);
+        }, notSupportLua, false);
+    }
+
+    public static SubLock factory(UniversalJedisFactory factory,boolean notSupportLua){
+        return new RedisSubLock(factory,notSupportLua,false);
     }
 
     /**
@@ -78,7 +84,10 @@ public class RedisSubLock implements SubLock {
      * @return
      */
     public static SubLock factoryInMainThread(String host, int port, boolean notSupportLua){
-        return new RedisSubLock(host,port,notSupportLua,true);
+        return new RedisSubLock(() -> {
+            Jedis jedis =  new Jedis(host, port);
+            return new DefaultUniversalJedis(jedis);
+        },notSupportLua,true);
     }
 
     @Override
@@ -89,11 +98,11 @@ public class RedisSubLock implements SubLock {
         Runnable func = () -> {
             runningState.set(true);
             started.countDown();
-            Jedis jedis = new Jedis(RedisSubLock.this.host, RedisSubLock.this.port);
+            UniversalJedis universalJedis = universalJedisFactory.factory();
             Recorder recorder = new Recorder(notSupportLua);
             while (!shutdownState.get()) {
                 try  {
-                    loopLock(recorder,jedis, key, uid, watcher);
+                    loopLock(recorder,universalJedis, key, uid, watcher);
                 } catch (RuntimeException e) {
                     log.info("lock watch while error", e);
                 }
@@ -102,8 +111,8 @@ public class RedisSubLock implements SubLock {
             if(!runInMain){
                 watcher.watch(LockEvent.LockerShutdown);
             }
-            RedisSubLock.this.releaseLock(key,uid,jedis,recorder.canRemove());
-            jedis.close();
+            RedisSubLock.this.releaseLock(key,uid,universalJedis,recorder.canRemove());
+            universalJedis.close();
             log.info("loop lock thread end, release redis and lock resource");
             waitShutdownComplete.countDown();
         };
@@ -138,16 +147,16 @@ public class RedisSubLock implements SubLock {
         log.info("shutdown all threads");
     }
 
-    private boolean releaseLock(String key,String value,Jedis jedis,boolean canRemove){
+    private boolean releaseLock(String key,String value,UniversalJedis universalJedis,boolean canRemove){
         if(this.notSupportLua){
             if(!canRemove){
                 return false;
             }
-            long ret = jedis.del(key);
+            long ret = universalJedis.del(key);
             log.info("releaseLock del,ret={}",ret);
             return ret == 1;
         }
-        Object ret = jedis.eval(ReleaseScript,Collections.singletonList(key),Collections.singletonList(value));
+        Object ret = universalJedis.eval(ReleaseScript,Collections.singletonList(key),Collections.singletonList(value));
         log.info("releaseLock ReleaseScript,ret={}",ret);
         return (long) ret == 1L;
     }
@@ -178,14 +187,14 @@ public class RedisSubLock implements SubLock {
         }
     }
 
-    private void loopLock(Recorder recorder,Jedis jedis, String key, String uid, EventWatcher watcher) {
+    private void loopLock(Recorder recorder,UniversalJedis universalJedis, String key, String uid, EventWatcher watcher) {
         int stateMachine = 0;
         while (!shutdownState.get()) {
             if (stateMachine == 0) {
                 SetParams params = new SetParams();
                 params.nx().ex(LockedLife);
                 recorder.record();
-                String ret = jedis.set(key, uid, params);
+                String ret = universalJedis.set(key, uid, params);
                 long timeout = TryLockTimeout;
                 if (ret == null) {
                     watcher.watch(LockEvent.LockTimeout);
@@ -203,7 +212,7 @@ public class RedisSubLock implements SubLock {
             if (stateMachine == 1) {
                 long timeout = TryLockTimeout;
                 recorder.record();
-                if (!lease(jedis, key, uid)) {
+                if (!lease(universalJedis, key, uid)) {
                     recorder.reset();
                     watcher.watch(LockEvent.LossLock);
                     stateMachine = 0;
@@ -218,18 +227,18 @@ public class RedisSubLock implements SubLock {
     }
 
 
-    private boolean lease(Jedis jedis, String key, String uid) {
+    private boolean lease(UniversalJedis universalJedis, String key, String uid) {
         if (this.notSupportLua) {
-            String v = jedis.get(key);
+            String v = universalJedis.get(key);
             if(!uid.equals(v)){
                 return false;
             }
-            long ret = jedis.expire(key, LockedLife);
+            long ret = universalJedis.expire(key, LockedLife);
             return ret == 1L;
         }
         List<String> keys = Collections.singletonList(key);
         List<String> values = Arrays.asList(uid, LockedLife + "");
-        Object ret = jedis.eval(LeaseScript, keys, values);
+        Object ret = universalJedis.eval(LeaseScript, keys, values);
         return (long) ret == 1L;
     }
 }
