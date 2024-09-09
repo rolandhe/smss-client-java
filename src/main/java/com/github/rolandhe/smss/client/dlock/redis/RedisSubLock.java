@@ -6,7 +6,6 @@ import com.github.rolandhe.smss.client.dlock.LockEvent;
 import com.github.rolandhe.smss.client.dlock.QuickWaiter;
 import lombok.extern.slf4j.Slf4j;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.params.SetParams;
 
 import java.util.Arrays;

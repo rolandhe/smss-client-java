@@ -12,5 +12,9 @@ public interface SubLock {
      * @return
      */
     boolean lockWatch(String key,EventWatcher watcher);
+
+    /**
+     * 停止锁定，释放锁资源
+     */
     void shutdown();
 }
